@@ -75,7 +75,7 @@ class Connection(object):
     OPERACIÓN: Cerrar la conexión
     RESPUESTA: 0 OK
     """
-    self.status = "END"
+    self.status = END
     self.socket.send(b'0 OK\r\n')
     self.socket.close()
 
@@ -119,14 +119,14 @@ class Connection(object):
     Elige la operación a la cual dirigir el pedido
     en base a la switch table
     """
-    do_oper = self.switch_table.get(str(data.split(' ', 1)), None)
+    do_oper = self.switch_table.get(data.split(' ')[0], None)
     print(
-        f"EL PARSEO DEL COMANDO QUE HAGO ES {str(data.split(' ', 1))}")
+        f"============ EL PARSEO DEL COMANDO QUE HAGO ES {data.split(' ')[0]}")
     if do_oper is None:
-      print("EL COMANDO NO CORRESPONDE Y ES INVÁLIDO")
+      print("============ EL COMANDO NO CORRESPONDE Y ES INVÁLIDO")
       self.status = INVALID_COMMAND
     else:
-      print("ME VOY A LA FUNCIÓN CORRESPONDIENTE")
+      print("============ ME VOY A LA FUNCIÓN CORRESPONDIENTE")
       do_oper(data)
     self.check_error()
 
@@ -136,6 +136,6 @@ class Connection(object):
     """
     while self.status is CODE_OK:
       data = self.read_line()
-      print(f"COMANDO QUE RECIBO -> {data}")
+      print(f"============ COMANDO QUE RECIBO -> {data}")
       self.check_error()
       self.operation(data)
