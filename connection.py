@@ -138,7 +138,7 @@ class Connection(object):
             self.status = INVALID_COMMAND
         else:
             print("============ ME VOY A LA FUNCIÓN CORRESPONDIENTE")
-            do_oper(data)
+            do_oper()
         self.check_error()
 
     def handle(self):
