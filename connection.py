@@ -46,22 +46,38 @@ class Connection(object):
             self.status = BAD_REQUEST
 
     def check_error(self):
-        """
-        En caso de que se haya producido algún error, lo chequea con
-        self.status, imprime el mensaje de error y termina en caso necesario
-        """
-        buffer = str(self.status) + '' + error_messages[self.status] + EOL
-        if fatal_status(self.status):
-            self.connected = False
-        return buffer
+      """
+      En caso de que se haya producido algún error, lo chequea con
+      self.status, imprime el mensaje de error y termina en caso necesario
+      """
+
+      # Si es error que comienza en 1, se manda error y se cierra conexión
+      if fatal_status(self.status):
+        self.connected = False
+        logging.error(
+            f"{self.status} {error_messages[self.status]}\r\n")
+        self.socket.close()
+      # Si es error que comienza en 2, se manda warning pero no se cierra conexión
+      elif not self.status == CODE_OK and not fatal_status(self.status):
+        self.connected = False
+        logging.warning(
+            f"{self.status} {error_messages[self.status]}\r\n")
+        # ERROR, NO DEBERÍA CERRARSE LA CONEXIÓN, SOLO TIRAR WARNING DE PARTE DEL SERVER. NO SE COMO HACER PARA QUE EL CLIENTE RECIBA QUE NO EXISTE EL DIR
+        self.socket.close()
+      elif self.status == CODE_OK:  # Si no hay error, se manda OK
+        self.socket.send(b'0 OK \r\n')
 
     def get_file_listing(self):
-        buffer = str(CODE_OK) + ' ' + error_messages[CODE_OK] + EOL
-        lista = os.listdir(self.dir)
-        for element in lista:
-            buffer += element + EOL
-        buffer += EOL
-        return buffer
+
+      self.check_error()
+
+      if os.path.exists(self.dir) and self.connected:
+        result = os.listdir(self.dir)
+        for archivo in result:
+          self.socket.send(archivo.encode("ascii")+b'\r\n')
+        self.socket.send(b'\r\n')
+      else:
+        self.status = FILE_NOT_FOUND
 
     def get_metadata(self, file):
         if not file in os.listdir(self.dir):
