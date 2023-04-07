@@ -67,7 +67,7 @@ class Connection(object):
       elif self.status == CODE_OK:  # Si no hay error, se manda OK
         self.socket.send(b'0 OK \r\n')
 
-    def get_file_listing(self):
+    def get_file_listing(self, data):
 
       self.check_error()
 
@@ -138,7 +138,7 @@ class Connection(object):
             self.status = INVALID_COMMAND
         else:
             print("============ ME VOY A LA FUNCIÓN CORRESPONDIENTE")
-            do_oper()
+            do_oper(data)
         self.check_error()
 
     def handle(self):
