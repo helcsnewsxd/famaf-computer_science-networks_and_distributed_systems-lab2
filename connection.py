@@ -166,7 +166,7 @@ class Connection(object):
     """
     Cierra la conexión a pedido del cliente
     """
-    buffer = str(CODE_OK) + ' ' + error_messages[CODE_OK]
+    buffer = self.mk_command()
     self.send(buffer)
     self.close()
 
