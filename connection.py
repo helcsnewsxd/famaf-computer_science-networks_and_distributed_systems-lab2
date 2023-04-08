@@ -34,11 +34,10 @@ class Connection(object):
         COMMANDS[3]: self.quit,
     }
 
-  def _recv(self, timeout=None):
+  def _recv(self):
     """
     Recibe datos y acumula en el buffer interno.
     """
-    self.socket.settimeout(timeout)
     data = self.socket.recv(4096).decode("ascii")
     self.buffer += data
 
@@ -46,7 +45,7 @@ class Connection(object):
       self.connected = False
       self.status = BAD_REQUEST
 
-  def read_line(self, timeout=None):
+  def read_line(self):
     """
     Espera datos hasta obtener una línea completa delimitada por el
     terminador del protocolo.
@@ -55,14 +54,6 @@ class Connection(object):
     al principio y al final.
     """
     if EOL not in self.buffer and self.status == CODE_OK:
-      if timeout is not None:
-        t1 = time.clock()
-      self._recv(timeout)
-      if timeout is not None:
-        t2 = time.clock()
-        timeout -= t2 - t1
-        t1 = t2
-
       ret = ""
       if EOL in self.buffer:
         response, self.buffer = self.buffer.split(EOL, 1)
@@ -71,14 +62,13 @@ class Connection(object):
         self.status = BAD_EOL
       return ret
 
-  def send(self, message, timeout=None):
+  def send(self, message):
     """
     Envía el mensaje 'message' al cliente, seguido por el terminador de
     línea del protocolo.
     Si se da un timeout, puede abortar con una excepción socket.timeout.
     También puede fallar con otras excepciones de socket.
     """
-    self.socket.settimeout(timeout)
     message += EOL  # Completar el mensaje con un fin de línea
     while message:
       bytes_sent = self.socket.send(message.encode("ascii"))
@@ -100,7 +90,6 @@ class Connection(object):
     """
 
     if self.status != CODE_OK:
-      print(f"AAAAAAAAAAAAAAAA {self.status}")
       self.send(str(self.status) + ' ' + error_messages[self.status])
       # Si es error que comienza en 1, se cierra conexión.
       # Caso contrario, no se atiende el pedido pero se sigue la conexión
@@ -148,31 +137,23 @@ class Connection(object):
       self.status = INVALID_ARGUMENTS
     else:
       filename, offset, size = command[1], command[2], command[3]
-      print(f"DATOS {filename} {offset} {size}")
       if filename not in os.listdir(self.dir):
-        print("NO esta en el listado")
         self.status = FILE_NOT_FOUND
       elif not offset.isnumeric() or not size.isnumeric():
-        print("no me dan nros")
         self.status = INVALID_ARGUMENTS
       elif not int(offset) + int(size) <= os.path.getsize(self.dir + os.path.sep + filename):
-        print("problema de la suma")
         self.status = BAD_OFFSET
       else:
-        buffer = str(CODE_OK) + ' ' + error_messages[CODE_OK] + EOL
+        buffer = str(CODE_OK) + ' ' + error_messages[CODE_OK]
         # Abro archivo
         with open(self.dir + os.path.sep + filename, 'rb') as file_data:
           # uso seek para ir al offset
           file_data.seek(int(offset))
-          # leo sólo el size pedido
-          data = file_data.read(int(size))
-          # codificación necesaria
-          data = b64encode(data)
+          # leo sólo el size pedido y lo codifico
+          fragment = b64encode(file_data.read(int(size)))
           # envío la respuesta
-          print(data)
-          buffer += str(data)
-          print(f"ENTRO BIEN {buffer}")
           self.send(buffer)
+          self.send(fragment)
 
   def quit(self, data):
     """
