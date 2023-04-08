@@ -34,6 +34,13 @@ class Connection(object):
         COMMANDS[3]: self.quit,
     }
 
+  def mk_command(self):
+    """
+    Crea la estructura del comando a enviar para
+    facilitar el codigo y su lectura
+    """
+    return f"{self.status} {error_messages[self.status]}"
+
   def _recv(self):
     """
     Recibe datos y acumula en el buffer interno.
@@ -90,7 +97,7 @@ class Connection(object):
     """
 
     if self.status != CODE_OK:
-      self.send(str(self.status) + ' ' + error_messages[self.status])
+      self.send(self.mk_command())
       # Si es error que comienza en 1, se cierra conexión.
       # Caso contrario, no se atiende el pedido pero se sigue la conexión
       if fatal_status(self.status):
@@ -102,7 +109,7 @@ class Connection(object):
     dentro del directorio del servidor
     """
     result = os.listdir(self.dir)
-    buffer = str(CODE_OK) + ' ' + error_messages[CODE_OK] + EOL
+    buffer = self.mk_command() + EOL
     for archivo in result:
       buffer += archivo + EOL
     self.send(buffer)
@@ -121,8 +128,7 @@ class Connection(object):
         self.status = FILE_NOT_FOUND
       else:
         size = os.path.getsize(self.dir + os.path.sep + filename)
-        buffer = str(CODE_OK) + ' ' + error_messages[CODE_OK] + EOL
-        buffer += str(size)
+        buffer = self.mk_command() + EOL + str(size)
         self.send(buffer)
 
   def get_slice(self, file):
@@ -141,10 +147,11 @@ class Connection(object):
         self.status = FILE_NOT_FOUND
       elif not offset.isnumeric() or not size.isnumeric():
         self.status = INVALID_ARGUMENTS
-      elif not int(offset) + int(size) <= os.path.getsize(self.dir + os.path.sep + filename):
+      elif not int(offset) + int(size) <= os.path.getsize(self.dir + os.path.sep + filename) \
+              or int(offset) < 0:
         self.status = BAD_OFFSET
       else:
-        buffer = str(CODE_OK) + ' ' + error_messages[CODE_OK]
+        buffer = self.mk_command()
         # Abro archivo
         with open(self.dir + os.path.sep + filename, 'rb') as file_data:
           # uso seek para ir al offset
