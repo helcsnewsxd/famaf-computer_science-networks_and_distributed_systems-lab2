@@ -5,7 +5,6 @@
 
 import socket
 from base64 import b64encode
-import logging
 import time
 import os
 from constants import *
@@ -19,7 +18,9 @@ class Connection(object):
   """
 
   def __init__(self, nsocket, directory):
-    # FALTA: Inicializar atributos de Connection
+    """
+    Inicialización de los atributos de Connection
+    """
     self.socket = nsocket
     self.dir = directory
     self.status = CODE_OK
@@ -45,93 +46,6 @@ class Connection(object):
       self.connected = False
       self.status = BAD_REQUEST
 
-  def check_error(self):
-    """
-    En caso de que se haya producido algún error, lo chequea con
-    self.status, imprime el mensaje de error y termina en caso necesario
-    """
-
-    # Si es error que comienza en 1, se manda error y se cierra conexión
-    if fatal_status(self.status):
-      self.connected = False
-      logging.error(f"{self.status} {error_messages[self.status]}\r\n")
-      self.socket.close()
-    # Si es error que comienza en 2, se manda warning pero no se cierra conexión
-    elif not self.status == CODE_OK and not fatal_status(self.status):
-      self.connected = False
-      logging.warning(f"{self.status} {error_messages[self.status]}\r\n")
-    elif self.status == CODE_OK:  # Si no hay error, se manda OK
-      self.socket.send(b'0 OK \r\n')
-
-  def get_file_listing(self, data):
-    """
-    Este comando devuelve la lista de los archivos y directorios 
-    dentro del directorio del servidor
-    """
-
-    self.check_error()
-
-    if os.path.exists(self.dir) and self.connected:
-      result = os.listdir(self.dir)
-      print("------------ 0 OK")
-      for archivo in result:
-        self.socket.send(archivo.encode("ascii")+b'\r\n')
-        print("------------" + archivo)
-      self.socket.send(b'\r\n')
-    else:
-      self.status = FILE_NOT_FOUND
-      self.check_error()
-
-  def get_metadata(self, file):
-
-    filename = file.rsplit(' ', 1)[-1]
-    if not filename in os.listdir(self.dir):
-      self.status = FILE_NOT_FOUND
-      return None
-    else:
-      size = os.path.getsize(self.dir + os.path.sep + filename)
-      print("------------ 0 OK")
-      print("------------" + str(size))
-      self.socket.send((str(size)).encode("ascii")+b'\r\n')
-
-  def get_slice(self, file):
-    """
-    Devuelve el fragmento de un archivo pedido en base64. 
-    El archivo debe estar en el directorio del servidor.
-    """
-
-    # Tengo que parsear cada parte de file
-    file_fields = file.rsplit(' ')
-    filename = file_fields[-3]
-    offset = file_fields[-2]
-    size = file_fields[-1]
-
-    if not filename in os.listdir(self.dir):
-      self.status = FILE_NOT_FOUND
-      return None
-    else:
-      # Abro archivo
-      with open(self.dir + os.path.sep + filename, 'rb') as FILE:
-        # uso seek para ir al offset
-        FILE.seek(int(offset))
-        # leo sólo el size pedido
-        data = FILE.read(int(size))
-        # codificación necesaria
-        data = b64encode(data)
-        print("------------ 0 OK")
-        print("------------" + str(data) + "\r\n")
-        self.socket.send(data+b'\r\n')
-
-  def quit(self, data):
-    """
-    ARGUMENTOS: No recibe
-    OPERACIÓN: Cerrar la conexión
-    RESPUESTA: 0 OK
-    """
-    buffer = str(CODE_OK) + ' ' + error_messages[CODE_OK] + EOL
-    self.connected = False
-    return (buffer)
-
   def read_line(self, timeout=None):
     """
     Espera datos hasta obtener una línea completa delimitada por el
@@ -140,41 +54,162 @@ class Connection(object):
     Devuelve la línea, eliminando el terminador y los espacios en blanco
     al principio y al final.
     """
-    if EOL not in self.buffer:
+    if EOL not in self.buffer and self.status == CODE_OK:
+      if timeout is not None:
+        t1 = time.clock()
       self._recv(timeout)
-    comando = self.buffer.split(EOL, 1)
-    if "\n" in comando[0]:
-      self.status = BAD_EOL
-    # Handlea el primer comando y lo remueve del buffer
-    self.buffer = self.buffer.replace(EOL.join(comando), "", 1)
-    data = comando[0]
-    return data
+      if timeout is not None:
+        t2 = time.clock()
+        timeout -= t2 - t1
+        t1 = t2
+
+      ret = ""
+      if EOL in self.buffer:
+        response, self.buffer = self.buffer.split(EOL, 1)
+        ret = response.strip()
+      else:
+        self.status = BAD_EOL
+      return ret
+
+  def send(self, message, timeout=None):
+    """
+    Envía el mensaje 'message' al cliente, seguido por el terminador de
+    línea del protocolo.
+    Si se da un timeout, puede abortar con una excepción socket.timeout.
+    También puede fallar con otras excepciones de socket.
+    """
+    self.socket.settimeout(timeout)
+    message += EOL  # Completar el mensaje con un fin de línea
+    while message:
+      bytes_sent = self.socket.send(message.encode("ascii"))
+      assert bytes_sent > 0
+      message = message[bytes_sent:]
+
+  def close(self):
+    """
+    Desconecta el cliente del server
+    """
+    self.connected = False
+    self.status = END
+    self.socket.close()
+
+  def check_error(self):
+    """
+    En caso de que se haya producido algún error, lo chequea con
+    self.status, imprime el mensaje de error y termina en caso necesario
+    """
+
+    if self.status != CODE_OK:
+      print(f"AAAAAAAAAAAAAAAA {self.status}")
+      self.send(str(self.status) + ' ' + error_messages[self.status])
+      # Si es error que comienza en 1, se cierra conexión.
+      # Caso contrario, no se atiende el pedido pero se sigue la conexión
+      if fatal_status(self.status):
+        self.close()
+
+  def get_file_listing(self, data):
+    """
+    Este comando devuelve la lista de los archivos
+    dentro del directorio del servidor
+    """
+    result = os.listdir(self.dir)
+    buffer = str(CODE_OK) + ' ' + error_messages[CODE_OK] + EOL
+    for archivo in result:
+      buffer += archivo + EOL
+    self.send(buffer)
+
+  def get_metadata(self, file):
+    """
+    Devuelve el tamaño del archivo en bytes elegido por el cliente.
+    El archivo debe estar en el directorio del servidor.
+    """
+    command = file.rsplit(' ')
+    if len(command) != 2:
+      self.status = INVALID_ARGUMENTS
+    else:
+      filename = command[1]
+      if filename not in os.listdir(self.dir):
+        self.status = FILE_NOT_FOUND
+      else:
+        size = os.path.getsize(self.dir + os.path.sep + filename)
+        buffer = str(CODE_OK) + ' ' + error_messages[CODE_OK] + EOL
+        buffer += str(size)
+        self.send(buffer)
+
+  def get_slice(self, file):
+    """
+    Devuelve el fragmento de un archivo pedido en base64.
+    El archivo debe estar en el directorio del servidor.
+    """
+    # Tengo que parsear cada parte de file
+    command = file.rsplit(' ')
+    if len(command) != 4:
+      print("MAL ARGUMENTOS")
+      self.status = INVALID_ARGUMENTS
+    else:
+      filename, offset, size = command[1], command[2], command[3]
+      print(f"DATOS {filename} {offset} {size}")
+      if filename not in os.listdir(self.dir):
+        print("NO esta en el listado")
+        self.status = FILE_NOT_FOUND
+      elif not offset.isnumeric() or not size.isnumeric():
+        print("no me dan nros")
+        self.status = INVALID_ARGUMENTS
+      elif not int(offset) + int(size) <= os.path.getsize(self.dir + os.path.sep + filename):
+        print("problema de la suma")
+        self.status = BAD_OFFSET
+      else:
+        buffer = str(CODE_OK) + ' ' + error_messages[CODE_OK] + EOL
+        # Abro archivo
+        with open(self.dir + os.path.sep + filename, 'rb') as file_data:
+          # uso seek para ir al offset
+          file_data.seek(int(offset))
+          # leo sólo el size pedido
+          data = file_data.read(int(size))
+          # codificación necesaria
+          data = b64encode(data)
+          # envío la respuesta
+          print(data)
+          buffer += str(data)
+          print(f"ENTRO BIEN {buffer}")
+          self.send(buffer)
+
+  def quit(self, data):
+    """
+    Cierra la conexión a pedido del cliente
+    """
+    buffer = str(CODE_OK) + ' ' + error_messages[CODE_OK]
+    self.send(buffer)
+    self.close()
 
   def operation(self, data):
     """
     Elige la operación a la cual dirigir el pedido
     en base a la switch table
     """
+    print(data)
     do_oper = self.switch_table.get(data.split(' ')[0], None)
-    print(
-        f"============ EL PARSEO DEL COMANDO QUE HAGO ES {data.split(' ')[0]}")
     if do_oper is None:
-      print("============ EL COMANDO NO CORRESPONDE Y ES INVÁLIDO")
       self.status = INVALID_COMMAND
     else:
-      print("============ ME VOY A LA FUNCIÓN CORRESPONDIENTE")
       do_oper(data)
-    self.check_error()
 
   def handle(self):
     """
     Atiende eventos de la conexión hasta que termina.
     """
-    while self.connected:
-      while self.status is CODE_OK:
-        data = self.read_line()
-        print(f"============ COMANDO QUE RECIBO -> {data}")
-        self.operation(data)
+    # El directorio del servidor no existe
+    if not os.path.exists(self.dir):
+      self.status = INTERNAL_ERROR
       self.check_error()
-      # self.send()
-    self.socket.close()
+
+    while self.connected is True:
+      data = self.read_line()
+      self.check_error()
+      # Si no debo procesar este pedido, no entro y vuelvo a OK
+      # Si debo cortar, se ve en la guarda del while
+      # Si está todo bien, entro a la operación
+      if self.connected is True and self.status is CODE_OK:
+        self.operation(data)
+        self.check_error()
+      self.status = CODE_OK
