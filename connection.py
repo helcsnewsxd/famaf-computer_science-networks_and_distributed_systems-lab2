@@ -87,7 +87,6 @@ class Connection(object):
     Desconecta el cliente del server
     """
     self.connected = False
-    self.status = END
     self.socket.close()
 
   def check_error(self):
