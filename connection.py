@@ -5,7 +5,6 @@
 
 import socket
 from base64 import b64encode
-import time
 import os
 from constants import *
 
@@ -17,7 +16,7 @@ class Connection(object):
   que termina la conexión.
   """
 
-  def __init__(self, nsocket, directory):
+  def __init__(self, nsocket: socket, directory):
     """
     Inicialización de los atributos de Connection
     """
@@ -60,15 +59,16 @@ class Connection(object):
     Devuelve la línea, eliminando el terminador y los espacios en blanco
     al principio y al final.
     """
+    # Limpio el buffer para este pedido
+    ret = ""
     if EOL not in self.buffer and self.status == CODE_OK:
       self._recv()
-      ret = ""
       if EOL in self.buffer:
         response, self.buffer = self.buffer.split(EOL, 1)
         ret = response.strip()
       else:
         self.status = BAD_EOL
-      return ret
+    return ret
 
   def send(self, message: bytes or str, encoding='ascii', with_eol=True):
     """
