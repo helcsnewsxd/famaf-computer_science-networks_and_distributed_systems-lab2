@@ -11,6 +11,7 @@ DEFAULT_PORT = 19500
 
 MAX_CLIENT = 5
 
+NEWLINE = '\n'
 EOL = '\r\n'
 
 CODE_OK = 0
