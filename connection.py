@@ -69,18 +69,29 @@ class Connection(object):
         self.status = BAD_EOL
       return ret
 
-  def send(self, message):
+  def send(self, message: bytes or str, encoding='ascii', with_eol=True):
     """
-    Envía el mensaje 'message' al cliente, seguido por el terminador de
-    línea del protocolo.
+    Envía el mensaje 'message' al cliente con el encoding solicitado,
+    seguido por el terminador de línea del protocolo.
     Si se da un timeout, puede abortar con una excepción socket.timeout.
     También puede fallar con otras excepciones de socket.
     """
-    message += EOL  # Completar el mensaje con un fin de línea
-    while message:
-      bytes_sent = self.socket.send(message.encode("ascii"))
-      assert bytes_sent > 0
-      message = message[bytes_sent:]
+    if encoding not in ('ascii', 'b64'):
+      self.status = INTERNAL_ERROR
+    else:
+      if encoding == 'ascii':
+        message = message.encode('ascii')
+      else:
+        message = b64encode(message)
+
+      while message:
+        bytes_sent = self.socket.send(message)
+        assert bytes_sent > 0
+        message = message[bytes_sent:]
+
+      # Completar el mensaje con un fin de línea
+      if with_eol:
+        self.send(EOL, with_eol=False)
 
   def close(self):
     """
@@ -156,10 +167,10 @@ class Connection(object):
           # uso seek para ir al offset
           file_data.seek(int(offset))
           # leo sólo el size pedido y lo codifico
-          fragment = b64encode(file_data.read(int(size)))
+          fragment = file_data.read(int(size))
           # envío la respuesta
           self.send(buffer)
-          self.send(fragment)
+          self.send(fragment, encoding='b64')
 
   def quit(self, data):
     """
