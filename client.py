@@ -83,12 +83,12 @@ class Client(object):
     Devuelve la línea, eliminando el terminaodr y los espacios en blanco
     al principio y al final.
     """
-    while not EOL in self.buffer and self.connected:
+    while EOL not in self.buffer and self.connected:
       if timeout is not None:
-        t1 = time.clock()
+        t1 = time.process_time()
       self._recv(timeout)
       if timeout is not None:
-        t2 = time.clock()
+        t2 = time.process_time()
         timeout -= t2 - t1
         t1 = t2
     if EOL in self.buffer:
@@ -209,12 +209,19 @@ def main():
 
   # Parsear argumentos
   parser = optparse.OptionParser(usage="%prog [options] server")
-  parser.add_option("-p", "--port",
-                    help="Numero de puerto TCP donde escuchar", default=DEFAULT_PORT)
-  parser.add_option("-v", "--verbose", dest="level", action="store",
-                    help="Determina cuanta informacion de depuracion a mostrar"
-                    "(valores posibles son: ERROR, WARN, INFO, DEBUG)",
-                    default="ERROR")
+  parser.add_option(
+      "-p",
+      "--port",
+      help="Numero de puerto TCP donde escuchar",
+      default=DEFAULT_PORT)
+  parser.add_option(
+      "-v",
+      "--verbose",
+      dest="level",
+      action="store",
+      help="Determina cuanta informacion de depuracion a mostrar"
+      "(valores posibles son: ERROR, WARN, INFO, DEBUG)",
+      default="ERROR")
   options, args = parser.parse_args()
   try:
     port = int(options.port)
