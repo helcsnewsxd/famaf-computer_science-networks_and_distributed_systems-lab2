@@ -33,6 +33,12 @@ class Connection(object):
         COMMANDS[3]: self.quit,
     }
 
+  def filename_is_valid(self, filename):
+    """
+    Chequea si el nombre de un archivo es válido 
+    """
+    return len(set(filename)-VALID_CHARS) == 0
+
   def mk_command(self):
     """
     Crea la estructura del comando a enviar para
@@ -44,11 +50,15 @@ class Connection(object):
     """
     Recibe datos y acumula en el buffer interno.
     """
-    data = self.socket.recv(4096).decode("ascii")
-    self.buffer += data
+    try:
+      data = self.socket.recv(4096).decode("ascii")
+      self.buffer += data
 
-    if len(data) == 0:
-      self.connected = False
+      if len(data) == 0:
+        self.connected = False
+        self.status = BAD_REQUEST
+
+    except UnicodeError:
       self.status = BAD_REQUEST
 
   def read_line(self):
@@ -61,19 +71,20 @@ class Connection(object):
     """
     # Limpio el buffer para este pedido
     ret = ""
-    if EOL not in self.buffer and self.status == CODE_OK:
+    while EOL not in self.buffer and self.status == CODE_OK:
       self._recv()
-      if EOL in self.buffer:
-        response, self.buffer = self.buffer.split(EOL, 1)
-        ret = response.strip()
-      else:
-        self.status = BAD_EOL
+
+    if EOL in self.buffer:
+      response, self.buffer = self.buffer.split(EOL, 1)
+      ret = response.strip()
+    else:
+      self.status = BAD_EOL
     return ret
 
-  def send(self, message: bytes or str, encoding='ascii', with_eol=True):
+  def send(self, message: bytes or str, encoding='ascii'):
     """
     Envía el mensaje 'message' al cliente con el encoding solicitado,
-    seguido por el terminador de línea del protocolo.
+    seguido por el terminador de línea del protocolo en caso que sea ascii.
     Si se da un timeout, puede abortar con una excepción socket.timeout.
     También puede fallar con otras excepciones de socket.
     """
@@ -81,17 +92,14 @@ class Connection(object):
       self.status = INTERNAL_ERROR
     else:
       if encoding == 'ascii':
+        message += EOL
         message = message.encode('ascii')
       else:
         message = b64encode(message)
-      while message:
+      while len(message) > 0:
         bytes_sent = self.socket.send(message)
         assert bytes_sent > 0
         message = message[bytes_sent:]
-
-      # Completar el mensaje con un fin de línea
-      if with_eol:
-        self.send(EOL, with_eol=False)
 
   def close(self):
     """
@@ -130,7 +138,7 @@ class Connection(object):
     El archivo debe estar en el directorio del servidor.
     """
     command = file.rsplit(' ')
-    if len(command) != 2:
+    if len(command) != 2 or not self.filename_is_valid(command[1]):
       self.status = INVALID_ARGUMENTS
     else:
       filename = command[1]
@@ -146,7 +154,6 @@ class Connection(object):
     Devuelve el fragmento de un archivo pedido en base64.
     El archivo debe estar en el directorio del servidor.
     """
-    # Tengo que parsear cada parte de file
     command = file.rsplit(' ')
     if len(command) != 4:
       self.status = INVALID_ARGUMENTS
@@ -154,22 +161,24 @@ class Connection(object):
       filename, offset, size = command[1], command[2], command[3]
       if filename not in os.listdir(self.dir):
         self.status = FILE_NOT_FOUND
-      elif not offset.isnumeric() or not size.isnumeric():
+      elif not self.filename_is_valid(filename) or not offset.isnumeric() or not size.isnumeric():
         self.status = INVALID_ARGUMENTS
       elif not int(offset) + int(size) <= os.path.getsize(self.dir + os.path.sep + filename) \
               or int(offset) < 0:
         self.status = BAD_OFFSET
       else:
         buffer = self.mk_command()
-        # Abro archivo
+        self.send(buffer)
         with open(self.dir + os.path.sep + filename, 'rb') as file_data:
-          # uso seek para ir al offset
           file_data.seek(int(offset))
-          # leo sólo el size pedido y lo codifico
-          fragment = file_data.read(int(size))
-          # envío la respuesta
-          self.send(buffer)
-          self.send(fragment, encoding='b64')
+
+          remaining = int(size)
+          while remaining > 0:
+            bytes_read = file_data.read(remaining)
+            remaining -= len(bytes_read)
+            self.send(bytes_read, encoding='b64')
+          # EOL
+          self.send('')
 
   def quit(self, data):
     """
