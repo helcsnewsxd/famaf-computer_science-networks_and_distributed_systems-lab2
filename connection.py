@@ -61,6 +61,7 @@ class Connection(object):
     al principio y al final.
     """
     if EOL not in self.buffer and self.status == CODE_OK:
+      self._recv()
       ret = ""
       if EOL in self.buffer:
         response, self.buffer = self.buffer.split(EOL, 1)
@@ -83,7 +84,6 @@ class Connection(object):
         message = message.encode('ascii')
       else:
         message = b64encode(message)
-
       while message:
         bytes_sent = self.socket.send(message)
         assert bytes_sent > 0
