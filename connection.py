@@ -33,19 +33,9 @@ class Connection(object):
         COMMANDS[3]: self.quit,
     }
 
-  def filename_is_valid(self, filename):
-    """
-    Chequea si el nombre de un archivo es válido 
-    """
-    return len(set(filename)-VALID_CHARS) == 0
+  # FUNCIONES AUXILIARES
 
-  def mk_command(self):
-    """
-    Crea la estructura del comando a enviar para
-    facilitar el codigo y su lectura
-    """
-    return f"{self.status} {error_messages[self.status]}"
-
+  # Lectura de comandos recibidos
   def _recv(self):
     """
     Recibe datos y acumula en el buffer interno.
@@ -69,18 +59,21 @@ class Connection(object):
     Devuelve la línea, eliminando el terminador y los espacios en blanco
     al principio y al final.
     """
-    # Limpio el buffer para este pedido
-    ret = ""
+    ret, self.buffer = "", ""
     while EOL not in self.buffer and self.status == CODE_OK:
       self._recv()
 
     if EOL in self.buffer:
       response, self.buffer = self.buffer.split(EOL, 1)
       ret = response.strip()
+      if NEWLINE in ret:
+        self.status = BAD_EOL
+        ret = ""
     else:
       self.status = BAD_EOL
     return ret
 
+  # Envío de respuestas al cliente
   def send(self, message: bytes or str, encoding='ascii'):
     """
     Envía el mensaje 'message' al cliente con el encoding solicitado,
@@ -101,6 +94,7 @@ class Connection(object):
         assert bytes_sent > 0
         message = message[bytes_sent:]
 
+  # Desconexión del socket
   def close(self):
     """
     Desconecta el cliente del server
@@ -108,6 +102,7 @@ class Connection(object):
     self.connected = False
     self.socket.close()
 
+  # Handler de errores del server o pedidos del cliente
   def check_error(self):
     """
     En caso de que se haya producido algún error, lo chequea con
@@ -121,72 +116,138 @@ class Connection(object):
       if fatal_status(self.status):
         self.close()
 
-  def get_file_listing(self, data):
+  # Comandos de HFTP
+  def mk_command(self):
+    """
+    Crea la estructura del comando a enviar para
+    facilitar el codigo y su lectura
+    """
+    return f"{self.status} {error_messages[self.status]}"
+
+  def cnt_args_is_valid(self, command, number):
+    """
+    Chequea que la cantidad de argumentos recibida sea
+    igual a la esperada
+    Es +1 ya que cuenta el nombre del comando
+    """
+    return len(command.rsplit(' ')) == number+1
+
+  def command_args(self, command):
+    """
+    Devuelve los comandos en una lista
+    """
+    command_data = command.rsplit(' ')
+    if len(command_data) == 1:
+      return []
+    else:
+      return command_data[1:]
+
+  # Directorio del servidor
+  def list_files(self):
+    """
+    Devuelve del listado de archivos del servidor
+    en el directorio en el que está
+    """
+    return os.listdir(self.dir)
+
+  def file_exists(self, filename):
+    """
+    Responde si el archivo especificado existe en
+    el directorio del servidor
+    """
+    return filename in self.list_files()
+
+  def filename_is_valid(self, filename):
+    """
+    Chequea si el nombre de un archivo es válido
+    """
+    return len(set(filename)-VALID_CHARS) == 0
+
+  def file_path(self, filename):
+    """
+    Devuelve el path completo del archivo recibido
+    """
+    return self.dir + os.path.sep + filename
+
+  # COMANDOS DEL SERVER
+
+  def get_file_listing(self, command):
     """
     Este comando devuelve la lista de los archivos
     dentro del directorio del servidor
     """
-    result = os.listdir(self.dir)
-    buffer = self.mk_command() + EOL
-    for archivo in result:
-      buffer += archivo + EOL
-    self.send(buffer)
+    if not self.cnt_args_is_valid(command, 0):
+      self.status = INVALID_ARGUMENTS
+    else:
+      buffer = self.mk_command() + EOL
+      all_files = self.list_files()
+      for file in all_files:
+        buffer += file + EOL
+      self.send(buffer)
 
-  def get_metadata(self, file):
+  def get_metadata(self, command):
     """
     Devuelve el tamaño del archivo en bytes elegido por el cliente.
     El archivo debe estar en el directorio del servidor.
     """
-    command = file.rsplit(' ')
-    if len(command) != 2 or not self.filename_is_valid(command[1]):
+    if not self.cnt_args_is_valid(command, 1):
       self.status = INVALID_ARGUMENTS
     else:
-      filename = command[1]
-      if filename not in os.listdir(self.dir):
+      filename = self.command_args(command)[0]
+
+      if not self.filename_is_valid(filename):
+        self.status = INVALID_ARGUMENTS
+      elif not self.file_exists(filename):
         self.status = FILE_NOT_FOUND
       else:
-        size = os.path.getsize(self.dir + os.path.sep + filename)
+        size = os.path.getsize(self.file_path(filename))
         buffer = self.mk_command() + EOL + str(size)
         self.send(buffer)
 
-  def get_slice(self, file):
+  def get_slice(self, command):
     """
     Devuelve el fragmento de un archivo pedido en base64.
     El archivo debe estar en el directorio del servidor.
     """
-    command = file.rsplit(' ')
-    if len(command) != 4:
+    if not self.cnt_args_is_valid(command, 3):
       self.status = INVALID_ARGUMENTS
     else:
-      filename, offset, size = command[1], command[2], command[3]
-      if filename not in os.listdir(self.dir):
-        self.status = FILE_NOT_FOUND
-      elif not self.filename_is_valid(filename) or not offset.isnumeric() or not size.isnumeric():
+      filename, offset, size = self.command_args(command)
+
+      if not self.filename_is_valid(filename) or not offset.isnumeric() or not size.isnumeric():
         self.status = INVALID_ARGUMENTS
-      elif not int(offset) + int(size) <= os.path.getsize(self.dir + os.path.sep + filename) \
-              or int(offset) < 0:
+      elif not self.file_exists(filename):
+        self.status = FILE_NOT_FOUND
+      elif int(offset) + int(size) > os.path.getsize(self.file_path(filename)) or int(offset) < 0:
         self.status = BAD_OFFSET
       else:
+        offset, size = int(offset), int(size)
+
         buffer = self.mk_command()
         self.send(buffer)
-        with open(self.dir + os.path.sep + filename, 'rb') as file_data:
-          file_data.seek(int(offset))
 
-          remaining = int(size)
-          while remaining > 0:
-            bytes_read = file_data.read(remaining)
-            remaining -= len(bytes_read)
-            self.send(bytes_read, encoding='b64')
-          # EOL
+        with open(self.dir + os.path.sep + filename, 'rb') as file_data:
+
+          bytes_read = b''
+          while size > 0:
+            file_data.seek(offset)
+            bytes_read += file_data.read(size)
+            size -= len(bytes_read)
+            offset += len(bytes_read)
+
+          self.send(bytes_read, encoding='b64')
           self.send('')
 
-  def quit(self, data):
+  def quit(self, command):
     """
     Cierra la conexión a pedido del cliente
     """
-    buffer = self.mk_command()
-    self.send(buffer)
-    self.close()
+    if not self.cnt_args_is_valid(command, 0):
+      self.status = INVALID_ARGUMENTS
+    else:
+      buffer = self.mk_command()
+      self.send(buffer)
+      self.close()
 
   def operation(self, data):
     """
