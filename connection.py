@@ -149,7 +149,6 @@ class Connection(object):
     # Tengo que parsear cada parte de file
     command = file.rsplit(' ')
     if len(command) != 4:
-      print("MAL ARGUMENTOS")
       self.status = INVALID_ARGUMENTS
     else:
       filename, offset, size = command[1], command[2], command[3]
@@ -185,7 +184,6 @@ class Connection(object):
     Elige la operación a la cual dirigir el pedido
     en base a la switch table
     """
-    print(data)
     do_oper = self.switch_table.get(data.split(' ')[0], None)
     if do_oper is None:
       self.status = INVALID_COMMAND
