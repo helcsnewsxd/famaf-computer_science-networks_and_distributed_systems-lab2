@@ -111,10 +111,11 @@ class Connection(object):
 
     if self.status != CODE_OK:
       self.send(self.mk_command())
-      # Si es error que comienza en 1, se cierra conexión.
+      # Si es error que comienza en 1, se cierra conexión con quit.
       # Caso contrario, no se atiende el pedido pero se sigue la conexión
       if fatal_status(self.status):
-        self.close()
+        self.status = CODE_OK
+        self.quit("quit")
 
   # Comandos de HFTP
   def mk_command(self):
@@ -139,8 +140,7 @@ class Connection(object):
     command_data = command.rsplit(' ')
     if len(command_data) == 1:
       return []
-    else:
-      return command_data[1:]
+    return command_data[1:]
 
   # Directorio del servidor
   def list_files(self):
