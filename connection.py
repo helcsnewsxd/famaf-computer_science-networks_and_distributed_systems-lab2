@@ -6,6 +6,7 @@
 import socket
 from base64 import b64encode
 import os
+import time
 from constants import *
 
 
@@ -36,11 +37,12 @@ class Connection(object):
   # FUNCIONES AUXILIARES
 
   # Lectura de comandos recibidos
-  def _recv(self):
+  def _recv(self, timeout=CMD_TIMEOUT):
     """
     Recibe datos y acumula en el buffer interno.
     """
     try:
+      self.socket.settimeout(timeout)
       data = self.socket.recv(4096).decode("ascii")
       self.buffer += data
 
@@ -51,7 +53,7 @@ class Connection(object):
     except UnicodeError:
       self.status = BAD_REQUEST
 
-  def read_line(self):
+  def read_line(self, timeout=CMD_TIMEOUT):
     """
     Espera datos hasta obtener una línea completa delimitada por el
     terminador del protocolo.
@@ -59,9 +61,15 @@ class Connection(object):
     Devuelve la línea, eliminando el terminador y los espacios en blanco
     al principio y al final.
     """
-    ret, self.buffer = "", ""
+    ret = ""
     while EOL not in self.buffer and self.status == CODE_OK:
-      self._recv()
+      if timeout is not None:
+        time1 = time.process_time()
+      self._recv(timeout)
+      if timeout is not None:
+        time2 = time.process_time()
+        timeout -= time2 - time1
+        time1 = time2
 
     if EOL in self.buffer:
       response, self.buffer = self.buffer.split(EOL, 1)

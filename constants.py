@@ -10,6 +10,7 @@ DEFAULT_ADDR = '0.0.0.0'  # 0.0.0.0 representa todas las IPv4 del server
 DEFAULT_PORT = 19500
 
 MAX_CLIENT = 5
+CMD_TIMEOUT = 5000
 
 NEWLINE = '\n'
 EOL = '\r\n'
