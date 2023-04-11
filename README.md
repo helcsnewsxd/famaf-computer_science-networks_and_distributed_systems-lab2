@@ -16,7 +16,7 @@ El servidor se implementó usando sockets, API para establecer la conexión entr
 
 1. Creación del socket
     
-    En el método *init* lo que hicimos primero fue inicializar self.host, self.port y [self.directory](http://self.directory) con los valores respectivos. Luego, creamos un objeto de socket usando la función socket.socket() que toma como argumentos socket.AF_INET (es decir, que se utilizará IPv4 para la comunicación) y socket.SOCK_STREAM indicando la utilización del protocolo TCP para la transferencia de datos. Por último, usando socket.setsockopt, lo que hicimos fue hacer que cuando un cliente deje de atenderse, otro nuevo cliente pueda reutilizar ese socket automáticamente. Ésta última línea es importante porque permite que el puerto de escucha pueda aceptar varias conexiones entrantes, y no esperar a que éste quede liberado por un cliente que lo este usando en el momento.
+    En el método *init* lo que hicimos primero fue inicializar self.host, self.port y self.directory con los valores respectivos. Luego, creamos un objeto de socket usando la función socket.socket() que toma como argumentos socket.AF_INET (es decir, que se utilizará IPv4 para la comunicación) y socket.SOCK_STREAM indicando la utilización del protocolo TCP para la transferencia de datos. Por último, usando socket.setsockopt, lo que hicimos fue hacer que cuando un cliente deje de atenderse, otro nuevo cliente pueda reutilizar ese socket automáticamente. Ésta última línea es importante porque permite que el puerto de escucha pueda aceptar varias conexiones entrantes, y no esperar a que éste quede liberado por un cliente que lo este usando en el momento.
     
     Luego, usamos socket.bind((addr, port)) donde se enlaza la dirección y el puerto (en el que el servidor estará escuchando conexiones entrantes) al socket creado previamente.
     
@@ -213,9 +213,9 @@ Luego, utiliza send para enviar mediante el socket el mensaje de la aplicación 
     
     Esta función devuelve el tamaño del archivo en bytes elegido por el cliente.
     
-    Primero, se verifica que la cantidad de argumentos recibidos sea válida, que el archivo exista y su nombre sea válido. Estos chequeos se realizan usando los métodos auxiliares **cnt_args_is_valid** **filename_is_valid** y **file_exists**
+    Primero, se verifica que la cantidad de argumentos recibidos sea válida, que el archivo exista y su nombre sea válido. Estos chequeos se realizan usando los métodos auxiliares *cnt_args_is_valid* *filename_is_valid* y *file_exists*.
     
-    Si todo sale bien, se usa el método **getsize** de la librería **os** para obtener el tamaño del archivo en bytes. Él tamaño se guarda en **size** para luego ser enviado al buffer.
+    Si todo sale bien, se usa el método *getsize* de la librería **os** para obtener el tamaño del archivo en bytes. Él tamaño se guarda en **size** para luego ser enviado al buffer.
     
     ```python
     def get_metadata(self, command):
@@ -242,11 +242,11 @@ Luego, utiliza send para enviar mediante el socket el mensaje de la aplicación 
     
     Obtiene un fragmento de un archivo codificado en base64 a partir de un offset especificado. El archivo debe estar en el directorio.
     
-    Primero, se verifica que la cantidad de argumentos recibidos sea válida, que el archivo exista y su nombre sea válido. Estos chequeos se realizan usando los métodos auxiliares **cnt_args_is_valid** **filename_is_valid** y **file_exists**
+    Primero, se verifica que la cantidad de argumentos recibidos sea válida, que el archivo exista y su nombre sea válido. Estos chequeos se realizan usando los métodos auxiliares *cnt_args_is_valid* *filename_is_valid* y *file_exists*
     
     También, se verifica que el offset sea válido, es decir, que se encuentre dentro de los límites del archivo.
     
-    Si todo sale bien, se abre el archivo usando el método **open** de python, guardando “la referencia” al archivo en file_data y, usando el método **seek y read** se obtiene el fragmento del archivo deseado. Se usa un ciclo while para la lectura de los bytes de información para que cuando se hayan leído todos los datos, se envíe usando el método auxiliar **send** el fragmento obtenido.
+    Si todo sale bien, se abre el archivo usando el método **open** de python, guardando “la referencia” al archivo en file_data y, usando el método *seek* y *read* se obtiene el fragmento del archivo deseado. Se usa un ciclo while para la lectura de los bytes de información para que cuando se hayan leído todos los datos, se envíe usando el método auxiliar *send* el fragmento obtenido.
     
     ```python
     def get_slice(self, command):
@@ -286,7 +286,7 @@ Luego, utiliza send para enviar mediante el socket el mensaje de la aplicación 
     
 3. quit:
     
-    Cierra la conexión a pedido del cliente. Si la cantidad de arguementos recibidos es correcta (es decir, cero argumentos) utiliza el método auxiliar **send** para enviar el buffer restante y **close** para cerrar el socket.
+    Cierra la conexión a pedido del cliente. Si la cantidad de arguementos recibidos es correcta (es decir, cero argumentos) utiliza el método auxiliar *send* para enviar el buffer restante y *close* para cerrar el socket.
     
     ```python
     def quit(self, command):
@@ -358,4 +358,4 @@ Solucionamos aquellas dificultades que se presentaron a la hora de:
 1. Algunas estrategias que existen para implementar esta aplicación de forma tal que permita recibir solicitudes de múltiples clientes en simultáneo son:
     1. **Thread pool** esta es la estrategia por la que se optó, consiste en crear un conjunto de hilos, cada uno para cada conexión entrante, de forma tal que las solicitudes se procesen de forma independiente entre sí. Para esta estrategia hizo falta cambiar algunos detalles de la implementación del archivo server.py: tuvimos que crear los respectivos hilos para cada solicitud entrante, y tuvimos que tener una cola de solicitudes organizada para que las mismas se atiendan en el orden que llegaron. El cambio no fue abismal porque se utilizaron las librerías *Queue* y *threading* que facilitaron su desarrollo.
     2. **Preforking** en esta estrategia se crean procesos hijos cuando el servidor se inicia. Estos procesos hijos son los que albergarán a las conexiones entrantes a medida que las mismas lleguen al puerto indicado. En esta implementación, haría falta también hacer que el proceso padre espere a que todos los hijos terminen de procesar sus solicitudes, esto se puede hacer usando la librería **os** y el método *wait*.
-2. [localhost](http://localhost) y 127.0.0.1 son las direcciones IP de la máquina local, es decir, la misma que estaría ejecutando el servidor. Esto significa que el servidor sólo puede ser accedido desde la máquina local. Sin embargo, si utilizamos la IP 0.0.0.0, el servidor va a escuchar conexiones que vengan desde cualquier dirección IP en la red que se encuentra el servidor.
+2. localhost y 127.0.0.1 son las direcciones IP de la máquina local, es decir, la misma que estaría ejecutando el servidor. Esto significa que el servidor sólo puede ser accedido desde la máquina local. Sin embargo, si utilizamos la IP 0.0.0.0, el servidor va a escuchar conexiones que vengan desde cualquier dirección IP en la red que se encuentra el servidor.
