@@ -352,6 +352,7 @@ Solucionamos aquellas dificultades que se presentaron a la hora de:
 - test_bad_eol: este es uno de los tests que nos falló. El problema residió en que no se consideraba el caso que haya un simbolo \n (NEWLINE) en la cadena, no haciendose un correcto manejo de errores.
 - test_command_in_pieces: este test tenia un error en su implementación ya que hacía un doble quit.
 - test_big_file: tuvimos problemas para realizar la codificación de los fragmentos pedidos por el cliente. Los fragmentos llegaban codificados cuando en realidad debían decodificarse al recibirse.
+- test_multiple_commands: el problema que tuvimos fue que el test estaba mal hecho. En el test, se leía solamente la devolución de uno de los get_file_listing. Para poder leer la siguiente, tuvimos que agregar una nueva linea en dodne se llamara a read_line nuevamente, para obtener el segundo get_file_listing. La aplicación funcionaba perfectamente, porque si se pasaba manualmente la linea que se teasteaba, respondía de forma correcta.
 
 ### Preguntas
 
