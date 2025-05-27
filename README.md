@@ -1,3 +1,10 @@
+> [!note]
+> This repository contains a project developed for the Distributed Systems and Networking course at FAMAF – Universidad Nacional de Córdoba. Created by Facundo Alvarez, Juan Bratti, and Emanuel Nicolás Herrador.
+>
+> The project focuses on designing and implementing a concurrent file server in Python 3, using a custom file transfer protocol (HFTP). The server is built to be robust, tolerant to incorrect or malicious client commands, and capable of handling multiple simultaneous connections.
+>
+> The content is written in Spanish, as it was originally submitted for academic evaluation.
+
 # Informe Laboratorio 2: Aplicación Servidor
 
 ## Resumen
